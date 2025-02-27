@@ -51,6 +51,7 @@ class MergeParisData:
             
             df = pd.merge(df, df_info, on='ParisID', how='left').drop_duplicates(subset=['ParisID'], keep='first')
             df = df[(df['AccountType'] == 'Atomic') | (df['AccountType'].isnull())]
+            df[['CustodianAcct', 'CustodianSecurityID']] = df[['CustodianAcct', 'CustodianSecurityID']].apply(lambda x: x.str.upper())
       
             # Remove commas from floating columns
             for col in self.float_columns:
