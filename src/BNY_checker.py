@@ -1,85 +1,94 @@
-from PARis_Export import PARisExport
+from merge_paris_data import MergeParisData
 import pandas as pd
 
-class BNYCheck:
+class BNYChecker:
     
-    def __init__(self,client_name):
+    def __init__(self, client_name):
         
         self.client_name = client_name
-        self.changeinna = pd.read_excel(f"./input/Statement_of_Change_in_Net_Assets_{self.client_name}.xls",header=0)
+        self.soc = pd.read_excel(f"./input/Statement_of_Change_in_Net_Assets_{self.client_name}.xls",header=0)
         
-        self.ctr = ['RECEIPTS:_CONTRIBUTIONS:_COMPANY','RECEIPTS:_CONTRIBUTIONS:_EMPLOYEE','RECEIPTS:_MISCELLANEOUS RECEIPTS',
-                    'RECEIPTS:_RECEIVED FROM PLAN ACCOUNTS','RECEIPTS:_RECEIVED FROM PLAN ADMINISTRATOR',
-                    'RECEIPTS:_RECEIVED FROM PARTICIPATING ACCOUNTS']
-        self.dtr = ['DISBURSEMENTS:_DISTRIBUTION OF BENEFITS:_ANNTY RETIRMNTS/WITHDRWLS','DISBURSEMENTS:_DISTRIBUTION OF BENEFITS:_MEDICAL EXPENSE',
-                    'DISBURSEMENTS:_DISTRIBUTION OF BENEFITS:_PAYMENTS - BENEFITS AND SERVICES','DISBURSEMENTS:_DISTRIBUTION OF BENEFITS:_PAYMENTS TO PARTICIPANTS',
-                    'DISBURSEMENTS:_DISTRIBUTION OF CASH','DISBURSEMENTS:_DISTRIBUTION TO OTHER BANKS',
-                    'DISBURSEMENTS:_DISTRIBUTION TO PLAN ACCOUNTS','DISBURSEMENTS:_DISTRIBUTION TO PLAN ADMINISTRATOR',
-                    'DISBURSEMENTS:_PAYMENTS TO INSURANCE CARRIERS:_PREMIUMS','DISBURSEMENTS:_DISBURSED TO PARTICIPATING ACCOUNTS']
-        self.ti = ['RECEIPTS:_DIRECT ROLLOVER TRANSFER IN','RECEIPTS:_PARTICIPANT TRANSFER IN',
-                    'RECEIPTS:_TRANSFERS IN:_CASH','RECEIPTS:_TRANSFERS IN:_INCOME CASH']
-        self.to = ['DISBURSEMENTS:_DIRECT ROLLOVER TRANSFER OUT','DISBURSEMENTS:_PARTICIPANT TRANSFER OUT',
-                    'DISBURSEMENTS:_TRANSFERS OUT:_CASH','DISBURSEMENTS:_TRANSFERS OUT:_INCOME CASH']
-        self.fe = ['DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_INVESTMENT ADVISORY FEES','DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_INVESTMENT MANAGEMENT',
-                    'DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_SERVICE FEES','RECEIPTS:_MT ALL INVESTMENT MANAGER FEES','DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_MANAGEMENT FEE - COMMITMENT']
-        self.exp = ['RECEIPTS:_MASTER TRUST ALLOCATED EXPENSES','RECEIPTS:_MASTER TRUST CONSULTING FEES',
-                    'RECEIPTS:_MASTER TRUST SEC LENDING REBATE','RECEIPTS:_MASTER TRUST STOCK LOAN FEES',
+        self.ctr = ['RECEIPTS:_CONTRIBUTIONS:',
+                    'RECEIPTS:_RECEIVED FROM',
+                    'RECEIPTS:_MISCELLANEOUS RECEIPTS']
+        self.dtr = ['DISBURSEMENTS:_DISTRIBUTION',
+                    'DISBURSEMENTS:_PAYMENTS TO INSURANCE CARRIERS:_PREMIUMS',
+                    'DISBURSEMENTS:_DISBURSED TO PARTICIPATING ACCOUNTS']
+        self.ti =  ['RECEIPTS:_TRANSFERS IN:',
+                    'RECEIPTS:_DIRECT ROLLOVER TRANSFER IN',
+                    'RECEIPTS:_PARTICIPANT TRANSFER IN']
+        self.to =  ['DISBURSEMENTS:_TRANSFERS OUT:',
+                    'DISBURSEMENTS:_DIRECT ROLLOVER TRANSFER OUT',
+                    'DISBURSEMENTS:_PARTICIPANT TRANSFER OUT',]
+        self.fe =  ['DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_INVESTMENT ADVISORY FEES',
+                    'DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_INVESTMENT MANAGEMENT',
+                    'DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_SERVICE FEES',
+                    'RECEIPTS:_MT ALL INVESTMENT MANAGER FEES',
+                    'DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_MANAGEMENT FEE - COMMITMENT']
+        self.exp = ['DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:',
+                    'RECEIPTS:_MASTER TRUST ALLOCATED EXPENSES',
+                    'RECEIPTS:_MASTER TRUST CONSULTING FEES',
+                    'RECEIPTS:_MASTER TRUST SEC LENDING REBATE',
+                    'RECEIPTS:_MASTER TRUST STOCK LOAN FEES',
                     'RECEIPTS:_MT ALL TRUST/CUSTODIAN FEES']
-        self.ignore = ['DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_COMMISSION ON FUTURES CONTRACTS','DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_INTEREST EXPENSE']
-        self.result_columns = ['PARisID','CustodianAcct','CustodianSecurityID','AccountDescription','Commingle Fund','MV_diff',
+        self.ignore = ['DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:_COMMISSION ON FUTURES CONTRACTS']
+        self.result_columns = ['ParisID','CustodianAcct','CustodianSecurityID','AccountDescription','Commingle Fund','MV_diff',
                                 'EXP_diff','FE_diff','TO_diff','TI_diff','CTR_diff','DTR_diff']
-        #self.check_formula = 'MV_diff>1|MV_diff<-1|EXP_diff>1|EXP_diff<-1|FE_diff>1|FE_diff<-1|\CTR_diff>1|CTR_diff<-1|DTR_diff>1|DTR_diff<-1|TI_diff>1|TI_diff<-1|TO_diff>1|TO_diff<-1'
 
-    def get_excel_data(self):
+    def generate_description(self, row):
+        desc1 = str(row['Description 1']) if pd.notna(row['Description 1']) else ''
+        desc2 = str(row['Description 2']) if pd.notna(row['Description 2']) else ''
+        desc3 = str(row['Description 3']) if pd.notna(row['Description 3']) else ''
 
-        df_changeinna = self.changeinna[['Reporting Account Number', 'Description 1', 'Description 2', 'Description 3', 'Local/Base Value']].copy()
-        for id in df_changeinna.index:
-            if len(str(df_changeinna.loc[id,'Description 3'])) != 3:
-                df_changeinna.loc[id,'Description'] = str(df_changeinna.loc[id,'Description 1']) + '_' + str(df_changeinna.loc[id,'Description 2']) + '_' + str(df_changeinna.loc[id,'Description 3'])
-            elif len(str(df_changeinna.loc[id,'Description 2'])) != 3:
-                df_changeinna.loc[id,'Description'] = str(df_changeinna.loc[id,'Description 1']) + '_' + str(df_changeinna.loc[id,'Description 2'])
-            else:
-                df_changeinna.loc[id,'Description'] = str(df_changeinna.loc[id,'Description 1'])
-        for id in df_changeinna.index:
-            if df_changeinna.loc[id,'Description'] in self.ctr:
-                df_changeinna.loc[id,'Transaction'] = 'CTR'
-            elif df_changeinna.loc[id,'Description'] in self.dtr:
-                df_changeinna.loc[id,'Transaction'] = 'DTR'
-            elif df_changeinna.loc[id,'Description'] in self.ti:
-                df_changeinna.loc[id,'Transaction'] = 'TI'
-            elif df_changeinna.loc[id,'Description'] in self.to:
-                df_changeinna.loc[id,'Transaction'] = 'TO'
-            elif df_changeinna.loc[id,'Description'] in self.fe:
-                df_changeinna.loc[id,'Transaction'] = 'FE'
-            elif df_changeinna.loc[id,'Description'] in self.exp:
-                df_changeinna.loc[id,'Transaction'] = 'EXP'
-            elif df_changeinna.loc[id,'Description'] in self.ignore:
-                continue
-            elif 'DISBURSEMENTS:_ADMINISTRATIVE EXPENSES:' in df_changeinna.loc[id,'Description']:
-                df_changeinna.loc[id,'Transaction'] = 'EXP'
-                
-        df=pd.DataFrame(set(df_changeinna['Reporting Account Number']), columns=['CustodianAcct'])
-        df.set_index('CustodianAcct',inplace=True)
-        for id in df.index:
-            bv = sum(df_changeinna.loc[(df_changeinna['Reporting Account Number']==id)&(df_changeinna['Description'] == 'NET ASSETS - BEGINNING OF PERIOD')]['Local/Base Value'])
-            pls = sum(df_changeinna.loc[(df_changeinna['Reporting Account Number']==id)&(df_changeinna['Description 1'] == 'RECEIPTS:')]['Local/Base Value'])
-            mis = sum(df_changeinna.loc[(df_changeinna['Reporting Account Number']==id)&(df_changeinna['Description 1'] == 'DISBURSEMENTS:')]['Local/Base Value'])
-            df.loc[id,'Ending Balance']= bv + pls - mis
-            df_filter = df_changeinna.loc[df_changeinna['Reporting Account Number']==id]
-            df.loc[id,'CTR']=sum(df_filter.loc[df_filter['Transaction']=='CTR']['Local/Base Value'])
-            df.loc[id,'DTR']=sum(df_filter.loc[df_filter['Transaction']=='DTR']['Local/Base Value'])
-            df.loc[id,'TI']=sum(df_filter.loc[df_filter['Transaction']=='TI']['Local/Base Value'])
-            df.loc[id,'TO']=sum(df_filter.loc[df_filter['Transaction']=='TO']['Local/Base Value'])
-            df.loc[id,'EXP']=sum(df_filter.loc[df_filter['Transaction']=='EXP']['Local/Base Value'])
-            df.loc[id,'FE']=sum(df_filter.loc[df_filter['Transaction']=='FE']['Local/Base Value'])
+        if desc3:
+            return f"{desc1}_{desc2}_{desc3}"
+        if desc2:
+            return f"{desc1}_{desc2}"
+        else:
+            return desc1
+
+    def assign_transaction(self, description):
+        transaction_mapping = {'CTR': self.ctr,'DTR': self.dtr,'TI': self.ti,'TO': self.to,'FE': self.fe,'EXP': self.exp}
+        if any(ignore_item in description for ignore_item in self.ignore): 
+            return None
+        for transaction, values in transaction_mapping.items():
+            if any(value in description for value in values):
+                return transaction
+        return None 
+
+    def get_bny_data(self):
+
+        df_soc = self.soc[['Reporting Account Number','End Date', 'Description 1', 'Description 2', 'Description 3', 'Local/Base Value', 'Acctg Status Update (EST)', 'Accounting Status']].copy()
+        df_soc['Description'] = df_soc.apply(self.generate_description, axis=1)    
+        df_soc['Transaction'] = df_soc['Description'].apply(self.assign_transaction)
+        
+        print(df_soc['Description'])
+
+        grouped = df_soc.groupby('Reporting Account Number')
+        df = grouped.apply(lambda x: pd.Series({
+            'Beginning Balance': x.loc[x['Description'] == 'NET ASSETS - BEGINNING OF PERIOD', 'Local/Base Value'].sum(),
+            'Ending Balance': (
+                x.loc[x['Description'] == 'NET ASSETS - BEGINNING OF PERIOD', 'Local/Base Value'].sum() +
+                x.loc[x['Description 1'] == 'RECEIPTS:', 'Local/Base Value'].sum() -
+                x.loc[x['Description 1'] == 'DISBURSEMENTS:', 'Local/Base Value'].sum()),
+            'CTR': x.loc[x['Transaction'] == 'CTR', 'Local/Base Value'].sum(),
+            'DTR': x.loc[x['Transaction'] == 'DTR', 'Local/Base Value'].sum(),
+            'TI': x.loc[x['Transaction'] == 'TI', 'Local/Base Value'].sum(),
+            'TO': x.loc[x['Transaction'] == 'TO', 'Local/Base Value'].sum(),
+            'EXP': x.loc[x['Transaction'] == 'EXP', 'Local/Base Value'].sum(),
+            'FE': x.loc[x['Transaction'] == 'FE', 'Local/Base Value'].sum()})).reset_index()
+
+        df.rename(columns={'Reporting Account Number': 'CustodianAcct'}, inplace=True)
+        
+        print(df)
 
         return df
 
     def bny_check(self):
-        # Merge PARis export data and excel data
-        PARis_Export = PARisExport(f"./input/{self.client_name}.xlsx")
-        df = PARis_Export.get_returnaudit()
-        df_excel = BNYCheck(self.client_name).get_excel_data()
+        # Merge Paris export data and excel data
+        Paris_Export = MergeParisData(self.client_name)
+        df = Paris_Export.merge_paris_data()
+        df_excel = BNYChecker(self.client_name).get_bny_data()
         df = pd.merge(df, df_excel, on='CustodianAcct', how="left")
         
         # Get commingle fund MV and merge to the dataframe
@@ -133,8 +142,8 @@ class BNYCheck:
 
 if __name__ == '__main__':
     
-    client_name = 'SBSUSA01'
-    df = BNYCheck(client_name).bny_check()
+    client_name = 'FSM01'
+    df = BNYChecker(client_name).bny_check()
     
     print(df)
-    df.set_index('PARisID').to_csv(f'./output/{client_name}_result.csv')
+    df.set_index('ParisID').to_csv(f'./output/{client_name}_result.csv')

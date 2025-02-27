@@ -49,25 +49,25 @@ class MergeParisData:
             df_info = pd.read_excel(self.accountsetupaudit_filepath, skiprows=1, header=0)
             df_info = self.process_account_setup_audit(df_info)
             
-            df = pd.merge(df, df_info, on='ParisID', how='left').drop_duplicates(subset=['ParisID'], keep='first')
-            df = df[(df['AccountType'] == 'Atomic') | (df['AccountType'].isnull())]
-            df[['CustodianAcct', 'CustodianSecurityID']] = df[['CustodianAcct', 'CustodianSecurityID']].apply(lambda x: x.str.upper())
+            df_merge = pd.merge(df, df_info, on='ParisID', how='left').drop_duplicates(subset=['ParisID'], keep='first')
+            df_merge = df_merge[(df_merge['AccountType'] == 'Atomic') | (df_merge['AccountType'].isnull())]
+            df_merge[['CustodianAcct', 'CustodianSecurityID']] = df_merge[['CustodianAcct', 'CustodianSecurityID']].apply(lambda x: x.str.upper())
       
             # Remove commas from floating columns
             for col in self.float_columns:
-                  df[col] = df[col].astype(str).apply(lambda x: float(x.replace(',', '')))
+                  df_merge[col] = df_merge[col].astype(str).apply(lambda x: float(x.replace(',', '')))
             
             # Strip leading and trailing whitespaces from string columns
             for col in self.str_columns:
-                  df[col] = df[col].astype(str).str.strip()
+                  df_merge[col] = df_merge[col].astype(str).str.strip()
             
             # Supplement security ID with leading zeros
-            df['CustodianSecurityID'] = df['CustodianSecurityID'].apply(lambda x: x if x == 'nan' else x.zfill(9)) 
+            df_merge['CustodianSecurityID'] = df_merge['CustodianSecurityID'].apply(lambda x: x if x == 'nan' else x.zfill(9)) 
 
             # Judge the Commingle Fund by CustodianAcct 
-            df['Commingle Fund'] = df['CustodianAcct'].apply(lambda x: 'Yes' if df['CustodianAcct'].eq(x).sum() > 1 else 'No' if x != 'nan' else '')  
+            df_merge['Commingle Fund'] = df_merge['CustodianAcct'].apply(lambda x: 'Yes' if df_merge['CustodianAcct'].eq(x).sum() > 1 else 'No' if x != 'nan' else '')  
             
-            return df
+            return df_merge
 
 if __name__ == '__main__':
 
