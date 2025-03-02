@@ -64,10 +64,19 @@ class MergeParisData:
             # Supplement security ID with leading zeros
             df_merge['CustodianSecurityID'] = df_merge['CustodianSecurityID'].apply(lambda x: x if x == 'nan' else x.zfill(9)) 
 
-            # Judge the Commingle Fund by CustodianAcct 
-            df_merge['Commingle Fund'] = df_merge['CustodianAcct'].apply(lambda x: 'Yes' if df_merge['CustodianAcct'].eq(x).sum() > 1 else 'No' if x != 'nan' else '')  
+            df_merge['Commingle Fund'] = df_merge['CustodianAcct'].apply(lambda x: self.is_commingle_fund(x, df_merge)) 
             
             return df_merge
+
+      def is_commingle_fund(self, account, df):
+            if account != 'nan':
+                  num_occurrences = df['CustodianAcct'].eq(account).sum()
+                  if num_occurrences > 1:
+                        return 'Yes'
+                  else:
+                        return 'No'
+            else:
+                  return ''
 
 if __name__ == '__main__':
 
